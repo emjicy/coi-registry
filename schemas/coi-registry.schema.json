@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compound.foundation/schemas/coi-registry.schema.json",
+  "title": "Compound DAO Conflict of Interest (COI) Registry",
+  "type": "object",
+  "required": ["version", "generated_at", "delegates"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the registry format (e.g., 1.0.0)",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of last build/update in ISO 8601"
+    },
+    "maintainer": {
+      "type": "string",
+      "description": "Team or org responsible for registry upkeep"
+    },
+    "delegates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/delegate" }
+    }
+  },
+  "$defs": {
+    "address": {
+      "type": "string",
+      "description": "EVM address (checksum or lowercased)",
+      "pattern": "^(0x)?[0-9a-fA-F]{40}$"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "enumMateriality": {
+      "type": "string",
+      "enum": ["major", "moderate", "minor", "unknown"]
+    },
+    "enumInterestType": {
+      "type": "string",
+      "enum": ["equity", "tokens", "grant", "retainer", "salary", "bounty", "warrants", "other"]
+    },
+    "enumRole": {
+      "type": "string",
+      "enum": ["investor", "advisor", "contractor", "employee", "contributor", "affiliate", "service_provider", "other"]
+    },
+    "enumStatus": {
+      "type": "string",
+      "enum": ["active", "inactive", "unknown"]
+    },
+    "enumCompliance": {
+      "type": "string",
+      "enum": ["compliant", "non_compliant", "needs_update", "unknown"]
+    },
+    "timeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start_date": { "type": "string", "format": "date" },
+        "end_date": { "type": "string", "format": "date" },
+        "ongoing": { "type": "boolean", "default": true }
+      }
+    },
+    "disclosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["short_text"],
+      "properties": {
+        "short_text": {
+          "type": "string",
+          "maxLength": 280,
+          "description": "Plain-English disclosure line suitable for forum/vote rationale"
+        },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/url" }
+        }
+      }
+    },
+    "interest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project", "role", "interest_type", "materiality", "status", "time", "disclosure"],
+      "properties": {
+        "project": { "type": "string", "description": "Name of the project/protocol/vendor" },
+        "project_slug": {
+          "type": "string",
+          "description": "URL/slug-safe identifier",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "role": { "$ref": "#/$defs/enumRole" },
+        "interest_type": { "$ref": "#/$defs/enumInterestType" },
+        "materiality": { "$ref": "#/$defs/enumMateriality" },
+        "status": { "$ref": "#/$defs/enumStatus" },
+        "compensation_currency": {
+          "type": "string",
+          "description": "e.g., USD, ETH, COMP, USDC",
+          "minLength": 1
+        },
+        "compensation_notes": { "type": "string", "description": "Optional context on comp structure" },
+        "org_affiliation": {
+          "type": "string",
+          "description": "If indirect: the org creating the tie (e.g., a VC or employer)"
+        },
+        "time": { "$ref": "#/$defs/timeRange" },
+        "disclosure": { "$ref": "#/$defs/disclosure" },
+        "links": { "type": "array", "items": { "$ref": "#/$defs/url" } }
+      }
+    },
+    "delegate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "wallets", "compliance", "last_updated", "interests"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Canonical identifier (ENS or slug)",
+          "pattern": "^[a-z0-9_.-]+(\\.eth)?$"
+        },
+        "display_name": { "type": "string" },
+        "organization": { "type": "string", "description": "Primary org if applicable" },
+        "contacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "forum_profile": { "$ref": "#/$defs/url" },
+            "website": { "$ref": "#/$defs/url" },
+            "twitter": { "$ref": "#/$defs/url" },
+            "email": { "type": "string", "format": "email" }
+          }
+        },
+        "wallets": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/address" }
+        },
+        "compliance": { "$ref": "#/$defs/enumCompliance" },
+        "notes": { "type": "string" },
+        "last_updated": { "type": "string", "format": "date-time" },
+        "interests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["direct", "indirect"],
+          "properties": {
+            "direct": { "type": "array", "items": { "$ref": "#/$defs/interest" } },
+            "indirect": { "type": "array", "items": { "$ref": "#/$defs/interest" } }
+          }
+        }
+      }
+    }
+  }
+}

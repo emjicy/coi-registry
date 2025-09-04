@@ -1,0 +1,18 @@
+{
+  "name": "coi-registry",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate.mjs",
+    "csv": "node scripts/mirror-to-csv.mjs",
+    "md": "node scripts/mirror-to-md.mjs",
+    "stamp": "node scripts/bump-generated-at.mjs",
+    "build": "npm run stamp && npm run validate && npm run csv && npm run md"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "json5": "^2.2.3",
+    "papaparse": "^5.4.1"
+  }
+}

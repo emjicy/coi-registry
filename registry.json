@@ -1,0 +1,104 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2025-09-04T14:10:00Z",
+  "maintainer": "Compound Governance Working Group (CGWG)",
+  "delegates": [
+    {
+      "id": "mel.eth",
+      "display_name": "mel.eth (StableLab)",
+      "organization": "StableLab",
+      "contacts": {
+        "forum_profile": "https://www.comp.xyz/u/mel.eth_stablelab",
+        "website": "https://stablelab.xyz",
+        "twitter": "https://x.com/mel_eth"
+      },
+      "wallets": [
+        "0x1D1a13b16667c284b87de62CAEEfF0ce89E342B2"
+      ],
+      "compliance": "compliant",
+      "notes": "Declares both direct and indirect interests. Updates quarterly.",
+      "last_updated": "2025-09-04T13:55:00Z",
+      "interests": {
+        "direct": [
+          {
+            "project": "Project B",
+            "project_slug": "project-b",
+            "role": "advisor",
+            "interest_type": "tokens",
+            "materiality": "moderate",
+            "status": "active",
+            "compensation_currency": "COMP",
+            "compensation_notes": "Non-exclusive advisory tokens vested over 12 months",
+            "time": { "start_date": "2025-03-01", "ongoing": true },
+            "disclosure": {
+              "short_text": "Disclosure: Advisor to Project B; token-compensated.",
+              "links": [
+                "https://forum.comp.xyz/t/project-b-governance-thread/1234"
+              ]
+            },
+            "links": [
+              "https://projectb.xyz"
+            ]
+          }
+        ],
+        "indirect": [
+          {
+            "project": "Protocol X",
+            "project_slug": "protocol-x",
+            "role": "service_provider",
+            "interest_type": "retainer",
+            "materiality": "minor",
+            "status": "active",
+            "org_affiliation": "StableLab",
+            "compensation_currency": "USDC",
+            "time": { "start_date": "2025-01-15", "ongoing": true },
+            "disclosure": {
+              "short_text": "Disclosure: StableLab provides paid services to Protocol X.",
+              "links": [
+                "https://stablelab.xyz/cases/protocol-x"
+              ]
+            },
+            "links": [
+              "https://protocolx.org"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "delegate-alpha.eth",
+      "display_name": "Delegate Alpha",
+      "organization": "Independent",
+      "contacts": {
+        "forum_profile": "https://www.comp.xyz/u/delegate-alpha",
+        "twitter": "https://x.com/delegate_alpha"
+      },
+      "wallets": [
+        "0xABcDEF1234567890abcdef1234567890ABCDef12"
+      ],
+      "compliance": "needs_update",
+      "last_updated": "2025-08-15T09:10:00Z",
+      "interests": {
+        "direct": [
+          {
+            "project": "LendingLab",
+            "project_slug": "lendinglab",
+            "role": "investor",
+            "interest_type": "equity",
+            "materiality": "major",
+            "status": "active",
+            "compensation_currency": "USD",
+            "time": { "start_date": "2024-11-01", "ongoing": true },
+            "disclosure": {
+              "short_text": "Disclosure: Equity investor in LendingLab.",
+              "links": [
+                "https://angel.co/company/lendinglab"
+              ]
+            }
+          }
+        ],
+        "indirect": []
+      }
+    }
+  ]
+}
