@@ -1,4 +1,4 @@
-# Compound DAO COI Registry
+# Compound DAO COI Registry x
 
 This repository contains the canonical **Conflict of Interest (COI) registry** for Compound DAO delegates.
 
