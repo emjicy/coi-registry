@@ -1,4 +1,4 @@
-import Ajv from "ajv/dist/2020";
+import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import fs from "fs";
 
