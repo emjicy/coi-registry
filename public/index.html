@@ -7,15 +7,19 @@
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
   <style>
     :root { color-scheme: light dark; }
-    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", sans-serif; margin: 2rem; }
     h1 { margin: 0 0 .25rem 0 }
-    .sub { color: #666; margin: 0 0 1.25rem 0 }
+    .sub { color: #666; margin: 0 0 .75rem 0 }
+    .meta { color:#666; font-size:.9rem; margin: 0 0 1.25rem 0 }
     table { width: 100% }
+    a { text-decoration: none }
+    a:hover { text-decoration: underline }
   </style>
 </head>
 <body>
   <h1>Conflict of Interest Registry</h1>
   <p class="sub">Transparent, auditable disclosures for DAO governance.</p>
+  <p class="meta" id="meta"></p>
 
   <table id="registry" class="display compact"></table>
 
@@ -27,55 +31,138 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <script>
-    // If your file lives elsewhere, change this path:
+    // ---- configuration ----
     const DATA_URL = 'registry.json';
 
-    // Preferred column order; any missing keys will be appended automatically
+    // Column order for flattened rows
     const PREFERRED_ORDER = [
-      'name','wallet','organization','role','category','disclosure','date','links'
+      'type',                 // direct | indirect
+      'delegate_id',
+      'delegate_name',
+      'organization',
+      'project',
+      'role',
+      'interest_type',
+      'materiality',
+      'status',
+      'compensation_currency',
+      'org_affiliation',
+      'start_date',
+      'ongoing',
+      'disclosure',
+      'links',
+      'wallets',
+      'forum_profile',
+      'twitter',
+      'website',
+      'last_updated'
     ];
 
-    // Linkify basic http(s) strings
-    function linkify(v){
-      if (typeof v !== 'string') return v;
-      if (/^https?:\/\//i.test(v)) return `<a href="${v}" target="_blank" rel="noopener">${v}</a>`;
-      return v;
-    }
+    // ---- helpers ----
+    const fmtDate = (s) => {
+      if (!s) return '';
+      const d = new Date(s);
+      return isNaN(d) ? s : d.toISOString().slice(0,10);
+    };
 
-    // Render arrays/objects compactly
-    function renderCell(v){
+    const shortAddr = (a) =>
+      /^0x[a-fA-F0-9]{40}$/.test(a) ? (a.slice(0,6) + '…' + a.slice(-4)) : a;
+
+    const aTag = (href, text=href) =>
+      `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+
+    const linkify = (v) => (typeof v === 'string' && /^https?:\/\//i.test(v)) ? aTag(v) : v;
+
+    const renderCell = (v) => {
       if (v == null) return '';
-      if (Array.isArray(v)) return v.map(linkify).join('<br/>');
-      if (typeof v === 'object') return Object.entries(v).map(([k,val]) => `<strong>${k}</strong>: ${linkify(val)}`).join('<br/>');
+      if (Array.isArray(v)) return v.map(x => renderCell(x)).join('<br/>');
+      if (typeof v === 'object') {
+        if (v.short_text) return v.short_text; // disclosure object
+        return Object.entries(v).map(([k,val]) => `<strong>${k}</strong>: ${renderCell(val)}`).join('<br/>');
+      }
       return linkify(String(v));
+    };
+
+    // Flatten { delegates: [ { interests: { direct[], indirect[] } } ] } → rows
+    function flatten(json){
+      const out = [];
+      const delegates = json?.delegates || [];
+      // header meta (optional)
+      const metaEl = document.getElementById('meta');
+      if (metaEl) {
+        const v = json?.version ? `v${json.version}` : '';
+        const g = json?.generated_at ? ` • generated ${fmtDate(json.generated_at)}` : '';
+        const m = json?.maintainer ? ` • maintainer: ${json.maintainer}` : '';
+        metaEl.textContent = [v,g,m].filter(Boolean).join('');
+      }
+
+      for (const d of delegates) {
+        const base = {
+          delegate_id: d.id || '',
+          delegate_name: d.display_name || '',
+          organization: d.organization || '',
+          wallets: (d.wallets || []).map(shortAddr).join('<br/>'),
+          forum_profile: d.contacts?.forum_profile ? aTag(d.contacts.forum_profile, 'forum') : '',
+          twitter: d.contacts?.twitter ? aTag(d.contacts.twitter, 'twitter') : '',
+          website: d.contacts?.website ? aTag(d.contacts.website, 'website') : '',
+          last_updated: fmtDate(d.last_updated),
+        };
+
+        const pushRows = (arr, type) => {
+          (arr || []).forEach(item => {
+            out.push({
+              ...base,
+              type,
+              project: item.project || '',
+              role: item.role || '',
+              interest_type: item.interest_type || '',
+              materiality: item.materiality || '',
+              status: item.status || '',
+              compensation_currency: item.compensation_currency || '',
+              org_affiliation: item.org_affiliation || '',
+              start_date: fmtDate(item.time?.start_date),
+              ongoing: (item.time?.ongoing === true) ? 'yes' : (item.time?.ongoing === false ? 'no' : ''),
+              disclosure: item.disclosure?.short_text || '',
+              links: [
+                ...(item.disclosure?.links || []),
+                ...(item.links || [])
+              ].map(h => aTag(h)).join('<br/>')
+            });
+          });
+        };
+
+        pushRows(d.interests?.direct, 'direct');
+        pushRows(d.interests?.indirect, 'indirect');
+      }
+      return out;
     }
 
+    // ---- bootstrap table ----
     fetch(DATA_URL)
       .then(r => r.json())
       .then(json => {
-        // Expecting an array of objects. If your JSON is {data:[...]}, adjust here:
-        const rows = Array.isArray(json) ? json : (json.data || []);
-        if (!rows.length) throw new Error('No entries found in registry.json');
+        const rows = flatten(json);
+        if (!rows.length) throw new Error('No entries found in registry.json (no interests to display).');
 
-        // Build column list: preferred first, then any extra keys that exist
-        const allKeys = Array.from(
-          rows.reduce((s, row) => { Object.keys(row).forEach(k => s.add(k)); return s; }, new Set())
-        );
-        const ordered = [...PREFERRED_ORDER.filter(k => allKeys.includes(k)), ...allKeys.filter(k => !PREFERRED_ORDER.includes(k))];
-
-        // Map data for DataTables
-        const data = rows.map(r => ordered.map(k => renderCell(r[k])));
+        const presentKeys = Array.from(rows.reduce((s,row)=>{Object.keys(row).forEach(k=>s.add(k)); return s;}, new Set()));
+        const columns = [
+          ...PREFERRED_ORDER.filter(k => presentKeys.includes(k)),
+          ...presentKeys.filter(k => !PREFERRED_ORDER.includes(k))
+        ];
+        const data = rows.map(r => columns.map(k => renderCell(r[k])));
 
         $('#registry').DataTable({
           data,
-          columns: ordered.map(k => ({ title: k.charAt(0).toUpperCase() + k.slice(1) })),
+          columns: columns.map(k => ({ title: k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) })),
           pageLength: 25,
           order: [[0, 'asc']],
           deferRender: true
         });
       })
       .catch(err => {
-        document.body.insertAdjacentHTML('beforeend', `<p style="color:#c00">Error loading registry.json: ${err.message}</p>`);
+        document.body.insertAdjacentHTML('beforeend',
+          `<p style="color:#c00">Error loading registry.json: ${err.message}</p>
+           <p><a href="${DATA_URL}" target="_blank" rel="noopener">Open registry.json</a></p>`);
       });
   </script>
 </body>
