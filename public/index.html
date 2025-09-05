@@ -1,4 +1,82 @@
-<!doctype html><meta charset="utf-8">
-<title>COI Registry</title>
-<h1>COI Registry</h1>
-<p>Deployment smoke test. Replace me with your real UI.</p>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>COI Registry</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    h1 { margin: 0 0 .25rem 0 }
+    .sub { color: #666; margin: 0 0 1.25rem 0 }
+    table { width: 100% }
+  </style>
+</head>
+<body>
+  <h1>Conflict of Interest Registry</h1>
+  <p class="sub">Transparent, auditable disclosures for DAO governance.</p>
+
+  <table id="registry" class="display compact"></table>
+
+  <p style="margin-top:1rem">
+    <a href="registry.json" download>Download JSON</a> ·
+    <a href="https://github.com/emjicy/coi-registry">Contribute on GitHub</a>
+  </p>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <script>
+    // If your file lives elsewhere, change this path:
+    const DATA_URL = 'registry.json';
+
+    // Preferred column order; any missing keys will be appended automatically
+    const PREFERRED_ORDER = [
+      'name','wallet','organization','role','category','disclosure','date','links'
+    ];
+
+    // Linkify basic http(s) strings
+    function linkify(v){
+      if (typeof v !== 'string') return v;
+      if (/^https?:\/\//i.test(v)) return `<a href="${v}" target="_blank" rel="noopener">${v}</a>`;
+      return v;
+    }
+
+    // Render arrays/objects compactly
+    function renderCell(v){
+      if (v == null) return '';
+      if (Array.isArray(v)) return v.map(linkify).join('<br/>');
+      if (typeof v === 'object') return Object.entries(v).map(([k,val]) => `<strong>${k}</strong>: ${linkify(val)}`).join('<br/>');
+      return linkify(String(v));
+    }
+
+    fetch(DATA_URL)
+      .then(r => r.json())
+      .then(json => {
+        // Expecting an array of objects. If your JSON is {data:[...]}, adjust here:
+        const rows = Array.isArray(json) ? json : (json.data || []);
+        if (!rows.length) throw new Error('No entries found in registry.json');
+
+        // Build column list: preferred first, then any extra keys that exist
+        const allKeys = Array.from(
+          rows.reduce((s, row) => { Object.keys(row).forEach(k => s.add(k)); return s; }, new Set())
+        );
+        const ordered = [...PREFERRED_ORDER.filter(k => allKeys.includes(k)), ...allKeys.filter(k => !PREFERRED_ORDER.includes(k))];
+
+        // Map data for DataTables
+        const data = rows.map(r => ordered.map(k => renderCell(r[k])));
+
+        $('#registry').DataTable({
+          data,
+          columns: ordered.map(k => ({ title: k.charAt(0).toUpperCase() + k.slice(1) })),
+          pageLength: 25,
+          order: [[0, 'asc']],
+          deferRender: true
+        });
+      })
+      .catch(err => {
+        document.body.insertAdjacentHTML('beforeend', `<p style="color:#c00">Error loading registry.json: ${err.message}</p>`);
+      });
+  </script>
+</body>
+</html>
