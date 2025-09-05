@@ -1,70 +1,157 @@
-<script>
-  // replace your existing buildBody() with this:
-  function buildBody(fields){
-    const linksArr   = fields.links.split(',').map(s=>s.trim()).filter(Boolean);
-    const walletsArr = fields.wallets.split(',').map(s=>s.trim()).filter(Boolean);
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>COI Registry</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", sans-serif; margin: 2rem; }
+    h1 { margin: 0 0 .25rem 0 }
+    .sub { color: #666; margin: 0 0 .5rem 0 }
+    .meta { color:#666; font-size:.9rem; margin: 0 0 1rem 0 }
+    .badge-ok { display:inline-block; background:#e6ffed; color:#036400; border:1px solid #03a65a; padding:.25rem .5rem; border-radius:.4rem; font-size:.85rem; }
+    .err { white-space:pre-wrap;background:#fee;border:1px solid #c00;padding:10px;margin:12px 0;color:#900;border-radius:.4rem }
+    a { text-decoration:none } a:hover { text-decoration:underline }
+    table { width: 100% }
+  </style>
+</head>
+<body>
+  <h1>Conflict of Interest Registry</h1>
+  <p class="sub">Transparent, auditable disclosures for DAO governance.</p>
+  <p class="meta" id="meta"></p>
+  <div id="status"></div>
 
-    // Canonical payload that matches registry.json shape
-    const payload = {
-      delegate_id: fields.id,
-      display_name: fields.name || fields.id,
-      organization: fields.org || "",
-      wallets: walletsArr,
-      interest: {
-        type: (fields.type || "").toLowerCase(),
-        project: fields.project,
-        role: fields.role || "",
-        interest_type: fields.itype || "",
-        materiality: fields.materiality || "",
-        status: fields.status || "",
-        compensation_currency: fields.currency || "",
-        org_affiliation: fields.affil || "",
-        time: {
-          start_date: fields.start || "",
-          ongoing: fields.ongoing ? (fields.ongoing.toLowerCase() === 'yes') : undefined
-        },
-        disclosure: {
-          short_text: fields.short || "",
-          links: linksArr
-        },
-        links: linksArr
+  <table id="registry" class="display compact" style="display:none"></table>
+
+  <p style="margin-top:1rem">
+    <a href="registry.json" download>Download JSON</a> ·
+    <a href="https://github.com/emjicy/coi-registry">Contribute on GitHub</a>
+  </p>
+
+  <!-- jQuery FIRST, then DataTables -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js" defer></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js" defer></script>
+
+  <script>
+  (function(){
+    const DATA_URL = 'registry.json'; // must be relative for project pages
+
+    function showError(msg){
+      const div = document.createElement('div');
+      div.className = 'err';
+      div.textContent = '⚠️ COI Registry runtime error:\n\n' + msg;
+      document.getElementById('status').appendChild(div);
+    }
+
+    // catch uncaught errors too
+    window.addEventListener('error', e => showError(e.message || String(e)));
+    window.addEventListener('unhandledrejection', e => showError((e.reason && (e.reason.stack||e.reason.message)) || String(e.reason)));
+
+    function fmtDate(s){ if(!s) return ''; const d=new Date(s); return isNaN(d)?s:d.toISOString().slice(0,10); }
+    function aTag(href, text){ return `<a href="${href}" target="_blank" rel="noopener">${text||href}</a>`; }
+    function shortAddr(a){ return /^0x[a-fA-F0-9]{40}$/.test(a) ? a.slice(0,6)+'…'+a.slice(-4) : a; }
+
+    function flatten(json){
+      const out = [];
+      const delegates = json?.delegates || [];
+      const metaEl = document.getElementById('meta');
+      if (metaEl) {
+        const v = json?.version ? `v${json.version}` : '';
+        const g = json?.generated_at ? ` • generated ${fmtDate(json.generated_at)}` : '';
+        const m = json?.maintainer ? ` • maintainer: ${json.maintainer}` : '';
+        metaEl.textContent = [v,g,m].filter(Boolean).join('');
       }
-    };
+      let interestsCount = 0;
 
-    const md = [
-`### Disclosure Submission
+      for (const d of delegates) {
+        const base = {
+          delegate_id: d.id || '',
+          delegate_name: d.display_name || '',
+          organization: d.organization || '',
+          wallets: (d.wallets || []).map(shortAddr).join('<br/>'),
+          forum_profile: d.contacts?.forum_profile ? aTag(d.contacts.forum_profile,'forum') : '',
+          twitter: d.contacts?.twitter ? aTag(d.contacts.twitter,'twitter') : '',
+          website: d.contacts?.website ? aTag(d.contacts.website,'website') : '',
+          last_updated: fmtDate(d.last_updated)
+        };
+        const pushRows = (arr, type) => (arr||[]).forEach(item=>{
+          interestsCount++;
+          out.push({
+            ...base,
+            type,
+            project: item.project || '',
+            role: item.role || '',
+            interest_type: item.interest_type || '',
+            materiality: item.materiality || '',
+            status: item.status || '',
+            compensation_currency: item.compensation_currency || '',
+            org_affiliation: item.org_affiliation || '',
+            start_date: fmtDate(item.time?.start_date),
+            ongoing: item.time?.ongoing === true ? 'yes' : (item.time?.ongoing === false ? 'no' : ''),
+            disclosure: item.disclosure?.short_text || '',
+            links: [...(item.disclosure?.links||[]), ...(item.links||[])].map(h=>aTag(h)).join('<br/>')
+          });
+        });
+        pushRows(d.interests?.direct, 'direct');
+        pushRows(d.interests?.indirect, 'indirect');
+      }
+      return { rows: out, delegates: delegates.length, interests: interestsCount };
+    }
 
-**delegate_id:** ${fields.id}
-**display_name:** ${fields.name || ""}
-**organization:** ${fields.org || ""}
-**wallets:** ${walletsArr.map(w=> '`'+w+'`').join(', ') || ''}
+    async function boot(){
+      // wait for scripts with defer
+      if (!window.jQuery || !jQuery.fn || !jQuery.fn.dataTable) {
+        await new Promise(r => setTimeout(r, 50));
+      }
 
-**interest:**
-- type: ${fields.type}
-- project: ${fields.project}
-- role: ${fields.role || ""}
-- interest_type: ${fields.itype || ""}
-- materiality: ${fields.materiality || ""}
-- status: ${fields.status || ""}
-- compensation_currency: ${fields.currency || ""}
-- org_affiliation: ${fields.affil || ""}
-- time:
-  - start_date: ${fields.start || ""}
-  - ongoing: ${fields.ongoing || ""}
-- disclosure:
-  - short_text: ${fields.short || ""}
-  - links: ${linksArr.map(l=> `<${l}>`).join(', ') || ''}
+      // fetch JSON with cache-bust in case of stale CDN/cache
+      const url = DATA_URL + '?v=' + Date.now();
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL}: HTTP ${res.status}`);
+      const json = await res.json();
 
-<!-- COI_JSON_START -->
-\`\`\`json
-${JSON.stringify(payload, null, 2)}
-\`\`\`
-<!-- COI_JSON_END -->
+      // minimal validation
+      if (!json || typeof json !== 'object') throw new Error('registry.json top-level must be an object');
+      if (!Array.isArray(json.delegates)) throw new Error('registry.json must include a "delegates" array');
 
-> Submitted via coi.oxcart.vote`
-    ].join('\n');
+      const { rows, delegates, interests } = flatten(json);
+      if (!rows.length) {
+        showError('No interests to display (delegates present: ' + delegates + ').');
+        // still show a badge so you know JSON loaded
+        const ok = document.createElement('div');
+        ok.className = 'badge-ok';
+        ok.textContent = `Loaded registry.json (${delegates} delegates, ${interests} interests)`;
+        document.getElementById('status').appendChild(ok);
+        return;
+      }
 
-    return md;
-  }
-</script>
+      const PREFERRED = ['type','delegate_id','delegate_name','organization','project','role','interest_type','materiality','status','compensation_currency','org_affiliation','start_date','ongoing','disclosure','links','wallets','forum_profile','twitter','website','last_updated'];
+      const present = Array.from(rows.reduce((s,r)=>{Object.keys(r).forEach(k=>s.add(k)); return s;}, new Set()));
+      const columns = [...PREFERRED.filter(k=>present.includes(k)), ...present.filter(k=>!PREFERRED.includes(k))];
 
+      const data = rows.map(r => columns.map(k => r[k] ?? ''));
+      $('#registry').DataTable({
+        data,
+        columns: columns.map(k => ({ title: k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) })),
+        pageLength: 25,
+        order: [[0,'asc']],
+        deferRender: true
+      });
+      document.getElementById('registry').style.display = '';
+
+      const ok = document.createElement('div');
+      ok.className = 'badge-ok';
+      ok.textContent = `Loaded registry.json (${delegates} delegates, ${interests} interests)`;
+      document.getElementById('status').appendChild(ok);
+    }
+
+    // kick off
+    document.addEventListener('DOMContentLoaded', () => {
+      boot().catch(err => showError(err.message || String(err)));
+    });
+  })();
+  </script>
+</body>
+</html>
