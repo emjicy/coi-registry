@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2025-09-05T16:46:03.830Z",
+  "maintainer": "",
+  "delegates": [
+    {
+      "id": "asdfg",
+      "display_name": "summa",
+      "organization": "SL",
+      "contacts": {},
+      "wallets": [
+        "0xasdfg"
+      ],
+      "compliance": "compliant",
+      "notes": "",
+      "last_updated": "2025-09-05T16:46:03.830Z",
+      "interests": {
+        "direct": [],
+        "indirect": [
+          {
+            "project": "protocol y",
+            "project_slug": "protocol-y",
+            "role": "advisory",
+            "interest_type": "tokens",
+            "materiality": "major",
+            "status": "inactive",
+            "compensation_currency": "USDC",
+            "org_affiliation": "SL",
+            "time": {
+              "start_date": "2025-09-05",
+              "ongoing": false
+            },
+            "disclosure": {
+              "short_text": "vibes and jokes",
+              "links": [
+                "https://emjicy.github.io/coi-registry/"
+              ]
+            },
+            "links": [
+              "https://emjicy.github.io/coi-registry/"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
