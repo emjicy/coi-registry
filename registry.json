@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generated_at": "2025-09-04T14:10:00Z",
+  "generated_at": "2025-09-05T15:29:33.583Z",
   "maintainer": "Compound Governance Working Group (CGWG)",
   "delegates": [
     {
@@ -29,7 +29,10 @@
             "status": "active",
             "compensation_currency": "COMP",
             "compensation_notes": "Non-exclusive advisory tokens vested over 12 months",
-            "time": { "start_date": "2025-03-01", "ongoing": true },
+            "time": {
+              "start_date": "2025-03-01",
+              "ongoing": true
+            },
             "disclosure": {
               "short_text": "Disclosure: Advisor to Project B; token-compensated.",
               "links": [
@@ -51,7 +54,10 @@
             "status": "active",
             "org_affiliation": "StableLab",
             "compensation_currency": "USDC",
-            "time": { "start_date": "2025-01-15", "ongoing": true },
+            "time": {
+              "start_date": "2025-01-15",
+              "ongoing": true
+            },
             "disclosure": {
               "short_text": "Disclosure: StableLab provides paid services to Protocol X.",
               "links": [
@@ -88,13 +94,48 @@
             "materiality": "major",
             "status": "active",
             "compensation_currency": "USD",
-            "time": { "start_date": "2024-11-01", "ongoing": true },
+            "time": {
+              "start_date": "2024-11-01",
+              "ongoing": true
+            },
             "disclosure": {
               "short_text": "Disclosure: Equity investor in LendingLab.",
               "links": [
                 "https://angel.co/company/lendinglab"
               ]
             }
+          }
+        ],
+        "indirect": []
+      }
+    },
+    {
+      "id": "** 009",
+      "display_name": "** 009",
+      "organization": "",
+      "contacts": {},
+      "wallets": [],
+      "compliance": "compliant",
+      "notes": "",
+      "last_updated": "2025-09-05T15:29:33.583Z",
+      "interests": {
+        "direct": [
+          {
+            "project": "009",
+            "project_slug": "009",
+            "role": "",
+            "interest_type": "",
+            "materiality": "",
+            "status": "",
+            "compensation_currency": "",
+            "time": {
+              "start_date": ""
+            },
+            "disclosure": {
+              "short_text": "",
+              "links": []
+            },
+            "links": []
           }
         ],
         "indirect": []
