@@ -27,36 +27,56 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Prepare site (public/ uses index.html from public, registry.json from root)
+      - name: Validate public/ contents
         run: |
           set -euo pipefail
 
-          # Ensure layout you want: index.html IN public/, registry.json AT root
-          test -s public/index.html || { echo "❌ public/index.html missing"; exit 21; }
-          test -s registry.json      || { echo "❌ registry.json missing at repo root"; exit 22; }
+          # Required files
+          test -s public/index.html || { echo "❌ public/index.html missing or empty"; exit 21; }
+          test -f public/registry.json || { echo "❌ public/registry.json not found (expected in public/)"; exit 22; }
 
-          # Build publish folder
-          rm -rf public/.publish
-          mkdir -p public/.publish
+          # At least one JSON present (guard against empty artifacts)
+          JSON_COUNT=$(find public -maxdepth 1 -type f -name "*.json" | wc -l | tr -d ' ')
+          echo "JSON files in public/: ${JSON_COUNT}"
+          if [ "${JSON_COUNT}" -lt 1 ]; then
+            echo "❌ No JSON files found in public/"; exit 23;
+          fi
 
-          # Copy site entrypoint as-is (already in public/)
-          cp public/index.html public/.publish/index.html
+          # Validate every JSON file in public/
+          node -e '
+            const fs = require("fs");
+            const path = require("path");
+            const dir = "public";
+            const files = fs.readdirSync(dir).filter(f => f.endsWith(".json"));
+            if (!files.length) { console.error("No .json files to validate"); process.exit(1); }
+            let ok = true;
+            for (const f of files) {
+              const p = path.join(dir, f);
+              try {
+                const s = fs.readFileSync(p, "utf8");
+                JSON.parse(s);
+                console.log("✓ JSON OK:", f, `(${s.length} bytes)`);
+              } catch (e) {
+                console.error("❌ JSON invalid:", f, e.message);
+                ok = false;
+              }
+            }
+            if (!ok) process.exit(1);
+          '
 
-          # Copy data from root into publish dir
-          cp registry.json public/.publish/registry.json
-
-          # Disable Jekyll in artifact only
-          touch public/.publish/.nojekyll
-
-          # Validate JSON
-          node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('public/.publish/registry.json','utf8')); console.log('✓ registry.json parses OK');"
+          # Ensure Pages doesn’t run Jekyll on the artifact
+          touch public/.nojekyll
 
       - name: Show publish tree
         run: |
-          echo "---- PUBLISH TREE (public/.publish) ----"
-          (cd public/.publish && find . -maxdepth 2 -type f -print | sort)
-          echo "---- registry.json head ----"
-          head -c 1024 public/.publish/registry.json || true
+          echo "---- PUBLIC TREE ----"
+          (cd public && find . -maxdepth 2 -type f -print | sort)
+          echo "---- HEADS ----"
+          echo "[index.html]"
+          head -c 1024 public/index.html || true
+          echo
+          echo "[registry.json]"
+          head -c 1024 public/registry.json || true
           echo
 
       - name: Configure Pages
@@ -65,7 +85,7 @@ jobs:
       - name: Upload artifact (public/)
         uses: actions/upload-pages-artifact@v3
         with:
-          path: public/.publish
+          path: public
 
   deploy:
     needs: build
