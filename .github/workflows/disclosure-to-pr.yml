@@ -42,19 +42,29 @@ jobs:
             const issue = context.payload.issue;
 
             // ---- helpers ----
-            // Normalize a line: trim, strip a single leading list bullet if present
-            const norm = (s) => s.replace(/^\s*[-*]\s*/, '').trim();
+            const stripHtml = (s='') =>
+              s.replace(/<br\s*\/?>/gi, '\n')
+               .replace(/<\/p>/gi, '\n')
+               .replace(/<\/li>/gi, '\n')
+               .replace(/<[^>]+>/g, '')
+               .replace(/\r/g, '');
 
-            // Match any of: **key:** v   |   - key: v   |   key: v
-            function mdVal(line) {
-              const L = norm(line);
+            const normLine = (s) => s.replace(/^\s*[-*]\s*/, '').trim();
 
-              // bold **key:** value
-              let m = L.match(/^\*\*([^*]+)\*\*:\s*(.*)$/);
+            // Accept **key:** v  |  - key: v  |  key: v  |  <strong>key</strong> : v
+            function kvFromLine(line) {
+              const L = normLine(line);
+
+              // HTML-ish bold
+              let m = L.match(/^<strong>([^<]+)<\/strong>\s*:\s*(.*)$/i);
               if (m) return { key: m[1].trim(), val: m[2].trim() };
 
-              // list "- key: value" (bullet may already be stripped by norm)
-              m = L.match(/^([A-Za-z0-9_]+)\s*:\s*(.*)$/);
+              // Markdown bold
+              m = L.match(/^\*\*([^*]+)\*\*:\s*(.*)$/);
+              if (m) return { key: m[1].trim(), val: m[2].trim() };
+
+              // Plain "key: value"
+              m = L.match(/^([A-Za-z0-9_ ]+)\s*:\s*(.*)$/);
               if (m) return { key: m[1].trim(), val: m[2].trim() };
 
               return null;
@@ -66,8 +76,12 @@ jobs:
             const parseLinksCSV = (s) =>
               (!s ? [] : s.split(',').map(x => x.trim().replace(/^<|>$/g,'')).filter(Boolean));
 
-            // ---- parse body ----
-            const lines = (issue.body || '').split(/\r?\n/);
+            // ---- body (handle HTML or Markdown) ----
+            let bodyRaw = issue.body || '';
+            const looksHtml = /<\w+[^>]*>/.test(bodyRaw);
+            const bodyText = looksHtml ? stripHtml(bodyRaw) : bodyRaw;
+
+            const lines = bodyText.split(/\n+/);
 
             const parsed = {
               delegate_id: '',
@@ -95,13 +109,14 @@ jobs:
               const line = raw.trim();
               if (!line) continue;
 
-              // section toggles (tolerate bullets/spaces)
-              const L = norm(line).toLowerCase();
-              if (/^interest\s*:/.test(L)) { inInterest = true; inTime = false; inDisclosure = false; continue; }
-              if (/^time\s*:/.test(L))     { inTime = true; inDisclosure = false; continue; }
+              const L = normLine(line).toLowerCase();
+
+              // Section toggles
+              if (/^interest\s*:/.test(L))   { inInterest = true; inTime = false; inDisclosure = false; continue; }
+              if (/^time\s*:/.test(L))       { inTime = true; inDisclosure = false; continue; }
               if (/^disclosure\s*:/.test(L)) { inDisclosure = true; inTime = false; continue; }
 
-              const kv = mdVal(line);
+              const kv = kvFromLine(line);
               if (!kv) continue;
               const k = kv.key.toLowerCase().replace(/\s+/g,'_');
               const v = kv.val;
@@ -114,9 +129,8 @@ jobs:
               } else if (inTime) {
                 if (k === 'start_date') parsed.interest.time.start_date = v;
                 else if (k === 'ongoing') {
-                  parsed.interest.time.ongoing =
-                    (v.toLowerCase() === 'yes') ? true :
-                    (v.toLowerCase() === 'no') ? false : undefined;
+                  const vv = v.toLowerCase();
+                  parsed.interest.time.ongoing = vv === 'yes' ? true : vv === 'no' ? false : undefined;
                 }
               } else if (inDisclosure) {
                 if (k === 'short_text') parsed.interest.disclosure.short_text = v;
@@ -133,6 +147,25 @@ jobs:
                 else if (k === 'links') parsed.interest.links = parseLinksCSV(v);
               }
             }
+
+            // --- Fallback: whole-body regex if required fields still missing ---
+            function rx(s){ return new RegExp(s, 'i'); }
+            const grab = (re) => {
+              const m = bodyText.match(re);
+              return m ? m[1].trim() : '';
+            };
+
+            if (!parsed.delegate_id) {
+              parsed.delegate_id = grab(rx(`(?:\\*\\*\\s*)?delegate[_\\s]?id(?:\\s*\\*\\*)?\\s*:\\s*([^\\n]+)`));
+            }
+            if (!parsed.interest.type) {
+              parsed.interest.type = grab(rx(`(?:\\*\\*\\s*)?(?:type)(?:\\s*\\*\\*)?\\s*:\\s*(direct|indirect)`)).toLowerCase();
+            }
+            if (!parsed.interest.project) {
+              parsed.interest.project = grab(rx(`(?:\\*\\*\\s*)?project(?:\\s*\\*\\*)?\\s*:\\s*([^\\n]+)`));
+            }
+
+            core.info(`PARSED delegate_id=${parsed.delegate_id} type=${parsed.interest.type} project=${parsed.interest.project}`);
 
             // ---- validation ----
             if (!parsed.delegate_id || !parsed.interest.type || !parsed.interest.project) {
