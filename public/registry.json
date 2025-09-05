@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generated_at": "2025-09-05T15:58:24.251Z",
+  "generated_at": "2025-09-05T16:56:53.078Z",
   "maintainer": "Compound Governance Working Group (CGWG)",
   "delegates": [
     {
@@ -13,11 +13,12 @@
         "twitter": "https://x.com/emjicy"
       },
       "wallets": [
-        "0x1D1a13b16667c284b87de62CAEEfF0ce89E342B2"
+        "0x1D1a13b16667c284b87de62CAEEfF0ce89E342B2",
+        "mel tester 0013"
       ],
       "compliance": "compliant",
       "notes": "Declares both direct and indirect interests. Updates quarterly.",
-      "last_updated": "2025-09-04T13:55:00Z",
+      "last_updated": "2025-09-05T16:56:53.077Z",
       "interests": {
         "direct": [
           {
@@ -41,6 +42,28 @@
             },
             "links": [
               "https://projectb.xyz"
+            ]
+          },
+          {
+            "project": "mel tester 0013",
+            "project_slug": "mel-tester-0013",
+            "role": "mel tester 0013",
+            "interest_type": "mel tester 0013",
+            "materiality": "mel tester 0013",
+            "status": "mel tester 0013",
+            "compensation_currency": "mel tester 0013",
+            "org_affiliation": "mel tester 0013",
+            "time": {
+              "start_date": "2025-09-05"
+            },
+            "disclosure": {
+              "short_text": "mel tester 0013",
+              "links": [
+                "mel tester 0013"
+              ]
+            },
+            "links": [
+              "mel tester 0013"
             ]
           }
         ],
