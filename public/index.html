@@ -9,12 +9,23 @@
     :root { color-scheme: light dark; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", sans-serif; margin: 2rem; }
     h1 { margin: 0 0 .25rem 0 }
+    h2 { margin: 2rem 0 .5rem 0 }
     .sub { color: #666; margin: 0 0 .5rem 0 }
     .meta { color:#666; font-size:.9rem; margin: 0 0 1rem 0 }
     .badge-ok { display:inline-block; background:#e6ffed; color:#036400; border:1px solid #03a65a; padding:.25rem .5rem; border-radius:.4rem; font-size:.85rem; }
     .err { white-space:pre-wrap;background:#fee;border:1px solid #c00;padding:10px;margin:12px 0;color:#900;border-radius:.4rem }
     a { text-decoration:none } a:hover { text-decoration:underline }
-    table { width: 100% }
+    table { width:100% }
+    .grid { display:grid; gap:.75rem; max-width:820px }
+    label { display:block; font-weight:600; }
+    input, select { width:100%; padding:.5rem; border:1px solid #ccc; border-radius:.35rem; background:inherit; color:inherit }
+    small.muted { color:#666 }
+    .card { border:1px solid #ddd; padding:1rem; border-radius:.5rem }
+    .row { display:grid; gap:.75rem; grid-template-columns:1fr 1fr }
+    @media (max-width:720px){ .row { grid-template-columns:1fr } }
+    .btn { padding:.6rem 1rem; border-radius:.4rem; border:1px solid #444; cursor:pointer; background:#111; color:#fff }
+    .btn:hover { opacity:.9 }
+    hr.sep { margin:2rem 0 }
   </style>
 </head>
 <body>
@@ -23,6 +34,7 @@
   <p class="meta" id="meta"></p>
   <div id="status"></div>
 
+  <!-- ===== Table ===== -->
   <table id="registry" class="display compact" style="display:none"></table>
 
   <p style="margin-top:1rem">
@@ -30,13 +42,109 @@
     <a href="https://github.com/emjicy/coi-registry">Contribute on GitHub</a>
   </p>
 
+  <hr class="sep"/>
+
+  <!-- ===== Intake Form ===== -->
+  <h2>Submit a Disclosure</h2>
+  <p class="sub">This form opens a pre-filled GitHub Issue in
+    <a href="https://github.com/emjicy/coi-registry" target="_blank" rel="noopener">emjicy/coi-registry</a>.
+    You’ll review & submit it there. Required fields are marked (required).</p>
+
+  <form id="disclosure-form" onsubmit="return false;" class="grid">
+    <div class="row">
+      <label>Delegate ID / ENS (required)
+        <input id="f-id" type="text" required placeholder="e.g., mel.eth" />
+      </label>
+      <label>Display Name
+        <input id="f-name" type="text" placeholder="e.g., mel.eth (StableLab)" />
+      </label>
+    </div>
+    <div class="row">
+      <label>Organization
+        <input id="f-org" type="text" placeholder="e.g., StableLab" />
+      </label>
+      <label>Wallet(s) (comma-separated)
+        <input id="f-wallets" type="text" placeholder="0x..., 0x..." />
+      </label>
+    </div>
+
+    <div class="card grid">
+      <strong>Interest Details</strong>
+      <div class="row">
+        <label>Type (required)
+          <select id="f-type" required>
+            <option value="direct">direct</option>
+            <option value="indirect">indirect</option>
+          </select>
+        </label>
+        <label>Project (required)
+          <input id="f-project" type="text" required placeholder="e.g., Protocol X" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Role
+          <input id="f-role" type="text" placeholder="advisor / investor / service_provider" />
+        </label>
+        <label>Interest Type
+          <input id="f-itype" type="text" placeholder="tokens / equity / retainer / grants" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Materiality
+          <input id="f-materiality" type="text" placeholder="minor / moderate / major" />
+        </label>
+        <label>Status
+          <input id="f-status" type="text" placeholder="active / inactive" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Compensation Currency
+          <input id="f-currency" type="text" placeholder="COMP / USDC / USD / ..." />
+        </label>
+        <label>Org Affiliation (for indirect)
+          <input id="f-affil" type="text" placeholder="e.g., StableLab" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Start Date
+          <input id="f-start" type="date" />
+        </label>
+        <label>Ongoing?
+          <select id="f-ongoing">
+            <option value="">unspecified</option>
+            <option value="yes">yes</option>
+            <option value="no">no</option>
+          </select>
+        </label>
+      </div>
+
+      <label>Disclosure (short text)
+        <input id="f-short" type="text" placeholder="e.g., Advisor to Project B; token-compensated." />
+      </label>
+      <label>Links (comma-separated)
+        <input id="f-links" type="text" placeholder="https://..., https://..." />
+      </label>
+    </div>
+
+    <div>
+      <button id="btn-disclose" class="btn">Open GitHub Issue…</button>
+      <div><small class="muted">Note: This page does not store your data. You’ll submit on GitHub.</small></div>
+    </div>
+  </form>
+
   <!-- jQuery FIRST, then DataTables -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js" defer></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js" defer></script>
 
   <script>
   (function(){
-    const DATA_URL = 'registry.json'; // must be relative for project pages
+    const DATA_URL = 'registry.json'; // relative path for project pages
+    const REPO_ISSUES_NEW = 'https://github.com/emjicy/coi-registry/issues/new';
+    const DEFAULT_LABELS = ['disclosure'];
 
     function showError(msg){
       const div = document.createElement('div');
@@ -44,8 +152,6 @@
       div.textContent = '⚠️ COI Registry runtime error:\n\n' + msg;
       document.getElementById('status').appendChild(div);
     }
-
-    // catch uncaught errors too
     window.addEventListener('error', e => showError(e.message || String(e)));
     window.addEventListener('unhandledrejection', e => showError((e.reason && (e.reason.stack||e.reason.message)) || String(e.reason)));
 
@@ -100,55 +206,138 @@
       return { rows: out, delegates: delegates.length, interests: interestsCount };
     }
 
+    // ---------- Intake form helpers ----------
+    function mdEscape(s){ return (s||'').replace(/</g,'&lt;'); }
+    function buildIssueBody(fields){
+      const linksArr   = fields.links.split(',').map(s=>s.trim()).filter(Boolean);
+      const walletsArr = fields.wallets.split(',').map(s=>s.trim()).filter(Boolean);
+      const payload = {
+        delegate_id: fields.id,
+        display_name: fields.name || fields.id,
+        organization: fields.org || "",
+        wallets: walletsArr,
+        interest: {
+          type: (fields.type || "").toLowerCase(),
+          project: fields.project,
+          role: fields.role || "",
+          interest_type: fields.itype || "",
+          materiality: fields.materiality || "",
+          status: fields.status || "",
+          compensation_currency: fields.currency || "",
+          org_affiliation: fields.affil || "",
+          time: {
+            start_date: fields.start || "",
+            ongoing: fields.ongoing ? (fields.ongoing.toLowerCase() === 'yes') : undefined
+          },
+          disclosure: {
+            short_text: fields.short || "",
+            links: linksArr
+          },
+          links: linksArr
+        }
+      };
+
+      return [
+`### Disclosure Submission
+
+**delegate_id:** ${mdEscape(fields.id)}
+**display_name:** ${mdEscape(fields.name)}
+**organization:** ${mdEscape(fields.org)}
+**wallets:** ${walletsArr.map(w=> '`'+w+'`').join(', ') || ''}
+
+**interest:**
+- type: ${mdEscape(fields.type)}
+- project: ${mdEscape(fields.project)}
+- role: ${mdEscape(fields.role)}
+- interest_type: ${mdEscape(fields.itype)}
+- materiality: ${mdEscape(fields.materiality)}
+- status: ${mdEscape(fields.status)}
+- compensation_currency: ${mdEscape(fields.currency)}
+- org_affiliation: ${mdEscape(fields.affil)}
+- time:
+  - start_date: ${mdEscape(fields.start)}
+  - ongoing: ${mdEscape(fields.ongoing)}
+- disclosure:
+  - short_text: ${mdEscape(fields.short)}
+  - links: ${linksArr.map(l=> `<${l}>`).join(', ') || ''}
+
+<!-- COI_JSON_START -->
+\`\`\`json
+${JSON.stringify(payload, null, 2)}
+\`\`\`
+<!-- COI_JSON_END -->
+
+> Submitted via coi.oxcart.vote`
+      ].join('\n');
+    }
+
+    function openIssueFromForm(){
+      const f = {
+        id: document.getElementById('f-id').value.trim(),
+        name: document.getElementById('f-name').value.trim(),
+        org: document.getElementById('f-org').value.trim(),
+        wallets: document.getElementById('f-wallets').value.trim(),
+        type: document.getElementById('f-type').value,
+        project: document.getElementById('f-project').value.trim(),
+        role: document.getElementById('f-role').value.trim(),
+        itype: document.getElementById('f-itype').value.trim(),
+        materiality: document.getElementById('f-materiality').value.trim(),
+        status: document.getElementById('f-status').value.trim(),
+        currency: document.getElementById('f-currency').value.trim(),
+        affil: document.getElementById('f-affil').value.trim(),
+        start: document.getElementById('f-start').value,
+        ongoing: document.getElementById('f-ongoing').value,
+        short: document.getElementById('f-short').value.trim(),
+        links: document.getElementById('f-links').value.trim(),
+      };
+
+      if (!f.id || !f.project || !f.type) {
+        alert('Please provide required fields: Delegate ID, Type, and Project.');
+        return;
+      }
+      const title = encodeURIComponent(`[Disclosure] ${f.id} → ${f.project}`);
+      const body  = encodeURIComponent(buildIssueBody(f));
+      const labels = encodeURIComponent(DEFAULT_LABELS.join(','));
+      const url = `${REPO_ISSUES_NEW}?title=${title}&body=${body}&labels=${labels}`;
+      window.open(url, '_blank', 'noopener');
+    }
+
+    // ---------- Boot table ----------
     async function boot(){
-      // wait for scripts with defer
       if (!window.jQuery || !jQuery.fn || !jQuery.fn.dataTable) {
         await new Promise(r => setTimeout(r, 50));
       }
-
-      // fetch JSON with cache-bust in case of stale CDN/cache
-      const url = DATA_URL + '?v=' + Date.now();
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await fetch(DATA_URL + '?v=' + Date.now(), { cache: 'no-store' });
       if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL}: HTTP ${res.status}`);
       const json = await res.json();
-
-      // minimal validation
       if (!json || typeof json !== 'object') throw new Error('registry.json top-level must be an object');
       if (!Array.isArray(json.delegates)) throw new Error('registry.json must include a "delegates" array');
 
       const { rows, delegates, interests } = flatten(json);
       if (!rows.length) {
         showError('No interests to display (delegates present: ' + delegates + ').');
-        // still show a badge so you know JSON loaded
-        const ok = document.createElement('div');
-        ok.className = 'badge-ok';
-        ok.textContent = `Loaded registry.json (${delegates} delegates, ${interests} interests)`;
-        document.getElementById('status').appendChild(ok);
-        return;
+      } else {
+        const PREF = ['type','delegate_id','delegate_name','organization','project','role','interest_type','materiality','status','compensation_currency','org_affiliation','start_date','ongoing','disclosure','links','wallets','forum_profile','twitter','website','last_updated'];
+        const present = Array.from(rows.reduce((s,r)=>{Object.keys(r).forEach(k=>s.add(k)); return s;}, new Set()));
+        const columns = [...PREF.filter(k=>present.includes(k)), ...present.filter(k=>!PREF.includes(k))];
+        const data = rows.map(r => columns.map(k => r[k] ?? ''));
+        $('#registry').DataTable({
+          data,
+          columns: columns.map(k => ({ title: k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) })),
+          pageLength: 25,
+          order: [[0,'asc']],
+          deferRender: true
+        });
+        document.getElementById('registry').style.display = '';
       }
-
-      const PREFERRED = ['type','delegate_id','delegate_name','organization','project','role','interest_type','materiality','status','compensation_currency','org_affiliation','start_date','ongoing','disclosure','links','wallets','forum_profile','twitter','website','last_updated'];
-      const present = Array.from(rows.reduce((s,r)=>{Object.keys(r).forEach(k=>s.add(k)); return s;}, new Set()));
-      const columns = [...PREFERRED.filter(k=>present.includes(k)), ...present.filter(k=>!PREFERRED.includes(k))];
-
-      const data = rows.map(r => columns.map(k => r[k] ?? ''));
-      $('#registry').DataTable({
-        data,
-        columns: columns.map(k => ({ title: k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) })),
-        pageLength: 25,
-        order: [[0,'asc']],
-        deferRender: true
-      });
-      document.getElementById('registry').style.display = '';
-
       const ok = document.createElement('div');
       ok.className = 'badge-ok';
       ok.textContent = `Loaded registry.json (${delegates} delegates, ${interests} interests)`;
       document.getElementById('status').appendChild(ok);
     }
 
-    // kick off
     document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('btn-disclose').addEventListener('click', openIssueFromForm);
       boot().catch(err => showError(err.message || String(err)));
     });
   })();
