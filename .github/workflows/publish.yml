@@ -1,0 +1,79 @@
+# .github/workflows/publish.yml
+name: Publish COI Registry
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node (for JSON validation)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare site (public/ uses index.html from public, registry.json from root)
+        run: |
+          set -euo pipefail
+
+          # Ensure layout you want: index.html IN public/, registry.json AT root
+          test -s public/index.html || { echo "❌ public/index.html missing"; exit 21; }
+          test -s registry.json      || { echo "❌ registry.json missing at repo root"; exit 22; }
+
+          # Build publish folder
+          rm -rf public/.publish
+          mkdir -p public/.publish
+
+          # Copy site entrypoint as-is (already in public/)
+          cp public/index.html public/.publish/index.html
+
+          # Copy data from root into publish dir
+          cp registry.json public/.publish/registry.json
+
+          # Disable Jekyll in artifact only
+          touch public/.publish/.nojekyll
+
+          # Validate JSON
+          node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('public/.publish/registry.json','utf8')); console.log('✓ registry.json parses OK');"
+
+      - name: Show publish tree
+        run: |
+          echo "---- PUBLISH TREE (public/.publish) ----"
+          (cd public/.publish && find . -maxdepth 2 -type f -print | sort)
+          echo "---- registry.json head ----"
+          head -c 1024 public/.publish/registry.json || true
+          echo
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact (public/)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public/.publish
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
