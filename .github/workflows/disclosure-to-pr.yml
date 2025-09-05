@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Parse issue ➜ update registry.json ➜ open PR
+      - name: Parse issue ➜ update public/registry.json ➜ open PR
         id: convert
         uses: actions/github-script@v7
         with:
@@ -43,20 +43,13 @@ jobs:
             const bodyRaw = issue.body || "";
 
             // ---------- Prefer canonical JSON payload in issue body ----------
-            // Expect between markers: <!-- COI_JSON_START --> ```json ... ``` <!-- COI_JSON_END -->
             const jsonBlock = (() => {
               const m = bodyRaw.match(/<!--\s*COI_JSON_START\s*-->([\s\S]*?)<!--\s*COI_JSON_END\s*-->/i);
               if (!m) return null;
               const code = m[1].match(/```json([\s\S]*?)```/i);
               const raw = code ? code[1] : m[1];
-              try {
-                const parsed = JSON.parse(raw);
-                core.info("COI JSON block parsed successfully.");
-                return parsed;
-              } catch (e) {
-                core.warning("Failed to parse COI JSON block: " + e.message);
-                return null;
-              }
+              try { return JSON.parse(raw); }
+              catch (e) { core.warning("Failed to parse COI JSON block: " + e.message); return null; }
             })();
 
             // ---------- Fallback parser (Markdown/HTML) ----------
@@ -66,16 +59,12 @@ jobs:
                  .replace(/<\/(p|li|ul|ol)>/gi, '\n')
                  .replace(/<[^>]+>/g, '')
                  .replace(/\r/g, '');
-
               const clean = (v='') =>
-                v.replace(/^\*\*\s*|\s*\*\*$/g,'') // trim ** ... **
-                 .replace(/^`|`$/g,'')             // inline code ticks
-                 .replace(/^<|>$/g,'')             // angle link wrappers
+                v.replace(/^\*\*\s*|\s*\*\*$/g,'')
+                 .replace(/^`|`$/g,'')
+                 .replace(/^<|>$/g,'')
                  .trim();
-
               const normLine = (s) => s.replace(/^\s*[-*]\s*/, '').trim();
-
-              // **key:** v  |  - key: v  |  key: v  |  <strong>key</strong>: v
               function kvFromLine(line) {
                 const L = normLine(line);
                 let m = L.match(/^<strong>([^<]+)<\/strong>\s*:\s*(.*)$/i);
@@ -86,7 +75,6 @@ jobs:
                 if (m) return { key: m[1].trim(), val: clean(m[2]) };
                 return null;
               }
-
               const looksHtml = /<\w+[^>]*>/.test(text);
               const bodyText = looksHtml ? stripHtml(text) : text;
               const lines = bodyText.split(/\n+/);
@@ -112,18 +100,15 @@ jobs:
               };
 
               let inInterest = false, inTime = false, inDisclosure = false;
-
               for (const raw of lines) {
-                const line = raw.trim();
-                if (!line) continue;
+                const line = raw.trim(); if (!line) continue;
                 const L = normLine(line).toLowerCase();
 
                 if (/^interest\s*:/.test(L))   { inInterest = true; inTime = false; inDisclosure = false; continue; }
                 if (/^time\s*:/.test(L))       { inTime = true; inDisclosure = false; continue; }
                 if (/^disclosure\s*:/.test(L)) { inDisclosure = true; inTime = false; continue; }
 
-                const kv = kvFromLine(line);
-                if (!kv) continue;
+                const kv = kvFromLine(line); if (!kv) continue;
                 const k = kv.key.toLowerCase().replace(/\s+/g,'_');
                 const v = kv.val;
                 const csv = (s)=> (!s?[]:s.split(',').map(x=>x.trim().replace(/^`|`$/g,'').replace(/^<|>$/g,'')).filter(Boolean));
@@ -154,8 +139,6 @@ jobs:
                   else if (k === 'links') parsed.interest.links = csv(v);
                 }
               }
-
-              // last-resort grabs for requireds
               const t = looksHtml ? stripHtml(text) : text;
               if (!parsed.delegate_id) parsed.delegate_id = (t.match(/delegate[_\s]?id\s*:\s*([^\n]+)/i)||[])[1] || '';
               if (!parsed.interest.type) parsed.interest.type = ((t.match(/type\s*:\s*(direct|indirect)/i)||[])[1]||'').toLowerCase();
@@ -176,20 +159,39 @@ jobs:
               return;
             }
 
-            // ---------- Load registry.json from main ----------
+            // ---------- Load registry from main (prefer public/, fallback root) ----------
             const getRef = await github.rest.git.getRef({ owner, repo, ref: 'heads/main' });
 
-            let fileSha = null, registry = null;
+            let srcPath = 'public/registry.json';
+            let srcSha  = null;
+            let registry = null;
+
+            async function loadAt(path) {
+              const file = await github.rest.repos.getContent({ owner, repo, path, ref: 'main' });
+              return { sha: file.data.sha, json: JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8')) };
+            }
+
             try {
-              const file = await github.rest.repos.getContent({ owner, repo, path: 'registry.json', ref: 'main' });
-              fileSha = file.data.sha;
-              registry = JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8'));
-            } catch (e) {
-              if (e.status === 404) {
-                registry = { version: '1.0.0', generated_at: new Date().toISOString(), maintainer: '', delegates: [] };
-              } else {
-                throw e;
-              }
+              const { sha, json } = await loadAt('public/registry.json');
+              srcPath = 'public/registry.json';
+              srcSha  = sha;
+              registry = json;
+              core.info('Loaded existing public/registry.json');
+            } catch (e1) {
+              if (e1.status === 404) {
+                try {
+                  const { sha, json } = await loadAt('registry.json'); // legacy root
+                  srcPath = 'registry.json';
+                  srcSha  = sha;
+                  registry = json;
+                  core.info('Loaded legacy registry.json at repo root');
+                } catch (e2) {
+                  if (e2.status === 404) {
+                    registry = { version: '1.0.0', generated_at: new Date().toISOString(), maintainer: '', delegates: [] };
+                    core.info('No existing registry found; initializing a new one');
+                  } else { throw e2; }
+                }
+              } else { throw e1; }
             }
 
             // ---------- Upsert delegate ----------
@@ -249,7 +251,7 @@ jobs:
             // Bump generated_at
             registry.generated_at = new Date().toISOString();
 
-            // ---------- Commit on feature branch ----------
+            // ---------- Commit on feature branch (always write to public/registry.json) ----------
             const newBranch = `disclosure/issue-${issue.number}`;
             try {
               await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${newBranch}`, sha: getRef.data.object.sha });
@@ -257,12 +259,17 @@ jobs:
               if (e.status !== 422) throw e; // already exists is OK
             }
 
-            const newContent = Buffer.from(JSON.stringify(registry, null, 2) + '\n', 'utf8').toString('base64');
+            const outPath = 'public/registry.json';
+            const outContent = Buffer.from(JSON.stringify(registry, null, 2) + '\n', 'utf8').toString('base64');
+
+            // If the source we loaded was already public/registry.json, pass its sha; otherwise create a new file at public/
+            const shaForUpdate = (srcPath === outPath) ? (srcSha || undefined) : undefined;
+
             await github.rest.repos.createOrUpdateFileContents({
-              owner, repo, branch: newBranch, path: 'registry.json',
+              owner, repo, branch: newBranch, path: outPath,
               message: `Add disclosure from issue #${issue.number} (${payload.delegate_id} → ${payload.interest.project})`,
-              content: newContent,
-              sha: fileSha || undefined,
+              content: outContent,
+              sha: shaForUpdate,
               committer: { name: 'coi-bot', email: 'coi-bot@users.noreply.github.com' },
               author: { name: context.actor, email: `${context.actor}@users.noreply.github.com` }
             });
