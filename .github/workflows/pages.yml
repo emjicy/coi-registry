@@ -18,27 +18,52 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # DEBUG: show tree so we know the folder really exists
-      - name: Show repo tree
+      # Ensure publish dir exists and contains required files
+      - name: Prepare site
         run: |
-          ls -la
-          echo "---- public dir ----"
-          ls -la public || true
-
-      # REQUIRED by Pages
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-        
-        #copies json to public
-      - name: Copy registry.json into public
-        run: |
+          set -euo pipefail
           mkdir -p public
-          cp registry.json public/registry.json
 
-      # Upload the static site (must exist!)
-      - name: Upload site
+          # Copy the UI (index.html) — adjust path if your file lives elsewhere
+          if [ -f public/index.html ]; then
+            echo "index.html already present."
+          elif [ -f index.html ]; then
+            cp index.html public/index.html
+          else
+            echo "❌ index.html not found (expected at public/index.html or repo root)."
+            exit 2
+          fi
+
+          # Copy the registry data
+          if [ -f registry.json ]; then
+            cp registry.json public/registry.json
+          elif [ -f data/registry.json ]; then
+            cp data/registry.json public/registry.json
+          else
+            echo "❌ registry.json not found (expected at repo root or data/)."
+            exit 3
+          fi
+
+          echo "✅ Prepared public/ directory."
+
+      # Helpful debug: show what we will publish
+      - name: Show publish tree
+        run: |
+          echo "---- PUBLIC TREE ----"
+          ls -la public
+          echo "---- registry.json head ----"
+          head -c 1024 public/registry.json || true
+          echo
+          test -s public/index.html || (echo "❌ index.html is empty." && exit 4)
+          test -s public/registry.json || (echo "❌ registry.json is empty." && exit 5)
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
