@@ -37,158 +37,153 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // injected: core, context, github
+            // injected globals: core, context, github
             const { owner, repo } = context.repo;
             const issue = context.payload.issue;
+            const bodyRaw = issue.body || "";
 
-            // ---- helpers ----
-            const stripHtml = (s='') =>
-              s.replace(/<br\s*\/?>/gi, '\n')
-               .replace(/<\/p>/gi, '\n')
-               .replace(/<\/li>/gi, '\n')
-               .replace(/<[^>]+>/g, '')
-               .replace(/\r/g, '');
-
-            const normLine = (s) => s.replace(/^\s*[-*]\s*/, '').trim();
-
-            // Accept **key:** v  |  - key: v  |  key: v  |  <strong>key</strong> : v
-            function kvFromLine(line) {
-              const L = normLine(line);
-
-              // HTML-ish bold
-              let m = L.match(/^<strong>([^<]+)<\/strong>\s*:\s*(.*)$/i);
-              if (m) return { key: m[1].trim(), val: m[2].trim() };
-
-              // Markdown bold
-              m = L.match(/^\*\*([^*]+)\*\*:\s*(.*)$/);
-              if (m) return { key: m[1].trim(), val: m[2].trim() };
-
-              // Plain "key: value"
-              m = L.match(/^([A-Za-z0-9_ ]+)\s*:\s*(.*)$/);
-              if (m) return { key: m[1].trim(), val: m[2].trim() };
-
-              return null;
-            }
-
-            const cleanBackticksCommaList = (s) =>
-              (!s ? [] : s.split(',').map(x => x.trim().replace(/^`|`$/g,'')).filter(Boolean));
-
-            const parseLinksCSV = (s) =>
-              (!s ? [] : s.split(',').map(x => x.trim().replace(/^<|>$/g,'')).filter(Boolean));
-
-            // ---- body (handle HTML or Markdown) ----
-            let bodyRaw = issue.body || '';
-            const looksHtml = /<\w+[^>]*>/.test(bodyRaw);
-            const bodyText = looksHtml ? stripHtml(bodyRaw) : bodyRaw;
-
-            const lines = bodyText.split(/\n+/);
-
-            const parsed = {
-              delegate_id: '',
-              display_name: '',
-              organization: '',
-              wallets: [],
-              interest: {
-                type: '',
-                project: '',
-                role: '',
-                interest_type: '',
-                materiality: '',
-                status: '',
-                compensation_currency: '',
-                org_affiliation: '',
-                time: { start_date: '', ongoing: undefined },
-                disclosure: { short_text: '', links: [] },
-                links: []
+            // ---------- Prefer canonical JSON payload in issue body ----------
+            // Expect between markers: <!-- COI_JSON_START --> ```json ... ``` <!-- COI_JSON_END -->
+            const jsonBlock = (() => {
+              const m = bodyRaw.match(/<!--\s*COI_JSON_START\s*-->([\s\S]*?)<!--\s*COI_JSON_END\s*-->/i);
+              if (!m) return null;
+              const code = m[1].match(/```json([\s\S]*?)```/i);
+              const raw = code ? code[1] : m[1];
+              try {
+                const parsed = JSON.parse(raw);
+                core.info("COI JSON block parsed successfully.");
+                return parsed;
+              } catch (e) {
+                core.warning("Failed to parse COI JSON block: " + e.message);
+                return null;
               }
-            };
+            })();
 
-            let inInterest = false, inTime = false, inDisclosure = false;
+            // ---------- Fallback parser (Markdown/HTML) ----------
+            function fallbackParse(text){
+              const stripHtml = (s='') =>
+                s.replace(/<br\s*\/?>/gi, '\n')
+                 .replace(/<\/(p|li|ul|ol)>/gi, '\n')
+                 .replace(/<[^>]+>/g, '')
+                 .replace(/\r/g, '');
 
-            for (const raw of lines) {
-              const line = raw.trim();
-              if (!line) continue;
+              const clean = (v='') =>
+                v.replace(/^\*\*\s*|\s*\*\*$/g,'') // trim ** ... **
+                 .replace(/^`|`$/g,'')             // inline code ticks
+                 .replace(/^<|>$/g,'')             // angle link wrappers
+                 .trim();
 
-              const L = normLine(line).toLowerCase();
+              const normLine = (s) => s.replace(/^\s*[-*]\s*/, '').trim();
 
-              // Section toggles
-              if (/^interest\s*:/.test(L))   { inInterest = true; inTime = false; inDisclosure = false; continue; }
-              if (/^time\s*:/.test(L))       { inTime = true; inDisclosure = false; continue; }
-              if (/^disclosure\s*:/.test(L)) { inDisclosure = true; inTime = false; continue; }
+              // **key:** v  |  - key: v  |  key: v  |  <strong>key</strong>: v
+              function kvFromLine(line) {
+                const L = normLine(line);
+                let m = L.match(/^<strong>([^<]+)<\/strong>\s*:\s*(.*)$/i);
+                if (m) return { key: m[1].trim(), val: clean(m[2]) };
+                m = L.match(/^\*\*([^*]+)\*\*:\s*(.*)$/);
+                if (m) return { key: m[1].trim(), val: clean(m[2]) };
+                m = L.match(/^([A-Za-z0-9_ ]+)\s*:\s*(.*)$/);
+                if (m) return { key: m[1].trim(), val: clean(m[2]) };
+                return null;
+              }
 
-              const kv = kvFromLine(line);
-              if (!kv) continue;
-              const k = kv.key.toLowerCase().replace(/\s+/g,'_');
-              const v = kv.val;
+              const looksHtml = /<\w+[^>]*>/.test(text);
+              const bodyText = looksHtml ? stripHtml(text) : text;
+              const lines = bodyText.split(/\n+/);
 
-              if (!inInterest) {
-                if (k === 'delegate_id') parsed.delegate_id = v;
-                else if (k === 'display_name') parsed.display_name = v;
-                else if (k === 'organization') parsed.organization = v;
-                else if (k === 'wallets') parsed.wallets = cleanBackticksCommaList(v);
-              } else if (inTime) {
-                if (k === 'start_date') parsed.interest.time.start_date = v;
-                else if (k === 'ongoing') {
-                  const vv = v.toLowerCase();
-                  parsed.interest.time.ongoing = vv === 'yes' ? true : vv === 'no' ? false : undefined;
+              const parsed = {
+                delegate_id: '',
+                display_name: '',
+                organization: '',
+                wallets: [],
+                interest: {
+                  type: '',
+                  project: '',
+                  role: '',
+                  interest_type: '',
+                  materiality: '',
+                  status: '',
+                  compensation_currency: '',
+                  org_affiliation: '',
+                  time: { start_date: '', ongoing: undefined },
+                  disclosure: { short_text: '', links: [] },
+                  links: []
                 }
-              } else if (inDisclosure) {
-                if (k === 'short_text') parsed.interest.disclosure.short_text = v;
-                else if (k === 'links') parsed.interest.disclosure.links = parseLinksCSV(v);
-              } else {
-                if (k === 'type') parsed.interest.type = v.toLowerCase();
-                else if (k === 'project') parsed.interest.project = v;
-                else if (k === 'role') parsed.interest.role = v;
-                else if (k === 'interest_type') parsed.interest.interest_type = v;
-                else if (k === 'materiality') parsed.interest.materiality = v;
-                else if (k === 'status') parsed.interest.status = v;
-                else if (k === 'compensation_currency') parsed.interest.compensation_currency = v;
-                else if (k === 'org_affiliation') parsed.interest.org_affiliation = v;
-                else if (k === 'links') parsed.interest.links = parseLinksCSV(v);
+              };
+
+              let inInterest = false, inTime = false, inDisclosure = false;
+
+              for (const raw of lines) {
+                const line = raw.trim();
+                if (!line) continue;
+                const L = normLine(line).toLowerCase();
+
+                if (/^interest\s*:/.test(L))   { inInterest = true; inTime = false; inDisclosure = false; continue; }
+                if (/^time\s*:/.test(L))       { inTime = true; inDisclosure = false; continue; }
+                if (/^disclosure\s*:/.test(L)) { inDisclosure = true; inTime = false; continue; }
+
+                const kv = kvFromLine(line);
+                if (!kv) continue;
+                const k = kv.key.toLowerCase().replace(/\s+/g,'_');
+                const v = kv.val;
+                const csv = (s)=> (!s?[]:s.split(',').map(x=>x.trim().replace(/^`|`$/g,'').replace(/^<|>$/g,'')).filter(Boolean));
+
+                if (!inInterest) {
+                  if (k === 'delegate_id') parsed.delegate_id = v;
+                  else if (k === 'display_name') parsed.display_name = v;
+                  else if (k === 'organization') parsed.organization = v;
+                  else if (k === 'wallets') parsed.wallets = csv(v);
+                } else if (inTime) {
+                  if (k === 'start_date') parsed.interest.time.start_date = v;
+                  else if (k === 'ongoing') {
+                    const vv = v.toLowerCase();
+                    parsed.interest.time.ongoing = vv === 'yes' ? true : vv === 'no' ? false : undefined;
+                  }
+                } else if (inDisclosure) {
+                  if (k === 'short_text') parsed.interest.disclosure.short_text = v;
+                  else if (k === 'links') parsed.interest.disclosure.links = csv(v);
+                } else {
+                  if (k === 'type') parsed.interest.type = (v||'').toLowerCase();
+                  else if (k === 'project') parsed.interest.project = v;
+                  else if (k === 'role') parsed.interest.role = v;
+                  else if (k === 'interest_type') parsed.interest.interest_type = v;
+                  else if (k === 'materiality') parsed.interest.materiality = v;
+                  else if (k === 'status') parsed.interest.status = v;
+                  else if (k === 'compensation_currency') parsed.interest.compensation_currency = v;
+                  else if (k === 'org_affiliation') parsed.interest.org_affiliation = v;
+                  else if (k === 'links') parsed.interest.links = csv(v);
+                }
               }
+
+              // last-resort grabs for requireds
+              const t = looksHtml ? stripHtml(text) : text;
+              if (!parsed.delegate_id) parsed.delegate_id = (t.match(/delegate[_\s]?id\s*:\s*([^\n]+)/i)||[])[1] || '';
+              if (!parsed.interest.type) parsed.interest.type = ((t.match(/type\s*:\s*(direct|indirect)/i)||[])[1]||'').toLowerCase();
+              if (!parsed.interest.project) parsed.interest.project = (t.match(/project\s*:\s*([^\n]+)/i)||[])[1] || '';
+              return parsed;
             }
 
-            // --- Fallback: whole-body regex if required fields still missing ---
-            function rx(s){ return new RegExp(s, 'i'); }
-            const grab = (re) => {
-              const m = bodyText.match(re);
-              return m ? m[1].trim() : '';
-            };
+            const payload = jsonBlock || fallbackParse(bodyRaw);
+            core.info('PARSED PAYLOAD:\n' + JSON.stringify(payload, null, 2));
 
-            if (!parsed.delegate_id) {
-              parsed.delegate_id = grab(rx(`(?:\\*\\*\\s*)?delegate[_\\s]?id(?:\\s*\\*\\*)?\\s*:\\s*([^\\n]+)`));
-            }
-            if (!parsed.interest.type) {
-              parsed.interest.type = grab(rx(`(?:\\*\\*\\s*)?(?:type)(?:\\s*\\*\\*)?\\s*:\\s*(direct|indirect)`)).toLowerCase();
-            }
-            if (!parsed.interest.project) {
-              parsed.interest.project = grab(rx(`(?:\\*\\*\\s*)?project(?:\\s*\\*\\*)?\\s*:\\s*([^\\n]+)`));
-            }
-
-            core.info(`PARSED delegate_id=${parsed.delegate_id} type=${parsed.interest.type} project=${parsed.interest.project}`);
-
-            // ---- validation ----
-            if (!parsed.delegate_id || !parsed.interest.type || !parsed.interest.project) {
+            // ---------- Validation ----------
+            if (!payload.delegate_id || !payload.interest || !payload.interest.type || !payload.interest.project) {
               core.setFailed('Missing required fields: delegate_id, interest.type, interest.project');
               return;
             }
-            if (!['direct','indirect'].includes(parsed.interest.type)) {
-              core.setFailed(`interest.type must be "direct" or "indirect" (received: ${parsed.interest.type})`);
+            if (!['direct','indirect'].includes(payload.interest.type)) {
+              core.setFailed(`interest.type must be "direct" or "indirect" (received: ${payload.interest.type})`);
               return;
             }
 
-            // ---- load registry.json from main ----
-            const mainRef = 'heads/main';
-            const getRef = await github.rest.git.getRef({ owner, repo, ref: mainRef });
+            // ---------- Load registry.json from main ----------
+            const getRef = await github.rest.git.getRef({ owner, repo, ref: 'heads/main' });
 
             let fileSha = null, registry = null;
             try {
-              const file = await github.rest.repos.getContent({
-                owner, repo, path: 'registry.json', ref: 'main'
-              });
+              const file = await github.rest.repos.getContent({ owner, repo, path: 'registry.json', ref: 'main' });
               fileSha = file.data.sha;
-              const buf = Buffer.from(file.data.content, 'base64').toString('utf8');
-              registry = JSON.parse(buf);
+              registry = JSON.parse(Buffer.from(file.data.content, 'base64').toString('utf8'));
             } catch (e) {
               if (e.status === 404) {
                 registry = { version: '1.0.0', generated_at: new Date().toISOString(), maintainer: '', delegates: [] };
@@ -197,16 +192,17 @@ jobs:
               }
             }
 
-            // ---- upsert delegate ----
+            // ---------- Upsert delegate ----------
+            const dId = payload.delegate_id;
             const delegates = registry.delegates || (registry.delegates = []);
-            let del = delegates.find(d => (d.id||'').toLowerCase() === parsed.delegate_id.toLowerCase());
+            let del = delegates.find(d => (d.id||'').toLowerCase() === dId.toLowerCase());
             if (!del) {
               del = {
-                id: parsed.delegate_id,
-                display_name: parsed.display_name || parsed.delegate_id,
-                organization: parsed.organization || '',
+                id: dId,
+                display_name: payload.display_name || dId,
+                organization: payload.organization || '',
                 contacts: {},
-                wallets: parsed.wallets || [],
+                wallets: payload.wallets || [],
                 compliance: 'compliant',
                 notes: '',
                 last_updated: new Date().toISOString(),
@@ -214,71 +210,68 @@ jobs:
               };
               delegates.push(del);
             } else {
-              const existing = new Set((del.wallets || []).map(w => (w||'').toLowerCase()));
-              for (const w of (parsed.wallets || [])) {
+              const ex = new Set((del.wallets || []).map(w => (w||'').toLowerCase()));
+              for (const w of (payload.wallets || [])) {
                 const wl = (w||'').toLowerCase();
-                if (wl && !existing.has(wl)) { (del.wallets ||= []).push(w); existing.add(wl); }
+                if (wl && !ex.has(wl)) { (del.wallets ||= []).push(w); ex.add(wl); }
               }
               del.last_updated = new Date().toISOString();
-              del.display_name = del.display_name || parsed.display_name || parsed.delegate_id;
-              del.organization = del.organization || parsed.organization || '';
+              del.display_name = del.display_name || payload.display_name || dId;
+              del.organization = del.organization || payload.organization || '';
               del.interests = del.interests || { direct: [], indirect: [] };
             }
 
-            // ---- new interest record ----
+            // ---------- Add interest ----------
+            const r = payload.interest || {};
             const rec = {
-              project: parsed.interest.project,
-              project_slug: parsed.interest.project.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^\-+|\-+$/g,''),
-              role: parsed.interest.role || '',
-              interest_type: parsed.interest.interest_type || '',
-              materiality: parsed.interest.materiality || '',
-              status: parsed.interest.status || '',
-              compensation_currency: parsed.interest.compensation_currency || '',
-              org_affiliation: parsed.interest.org_affiliation || undefined,
+              project: r.project,
+              project_slug: (r.project||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^\-+|\-+$/g,''),
+              role: r.role || '',
+              interest_type: r.interest_type || '',
+              materiality: r.materiality || '',
+              status: r.status || '',
+              compensation_currency: r.compensation_currency || '',
+              org_affiliation: r.org_affiliation || undefined,
               time: {
-                start_date: parsed.interest.time.start_date || '',
-                ongoing: typeof parsed.interest.time.ongoing === 'boolean' ? parsed.interest.time.ongoing : undefined
+                start_date: (r.time && r.time.start_date) || '',
+                ongoing: (r.time && typeof r.time.ongoing === 'boolean') ? r.time.ongoing : undefined
               },
               disclosure: {
-                short_text: parsed.interest.disclosure.short_text || '',
-                links: parsed.interest.disclosure.links || []
+                short_text: (r.disclosure && r.disclosure.short_text) || '',
+                links: (r.disclosure && r.disclosure.links) || []
               },
-              links: parsed.interest.links || []
+              links: r.links || []
             };
 
-            const bucket = parsed.interest.type === 'direct' ? 'direct' : 'indirect';
+            const bucket = (r.type === 'direct') ? 'direct' : 'indirect';
             (del.interests[bucket] ||= []).push(rec);
 
+            // Bump generated_at
             registry.generated_at = new Date().toISOString();
 
-            // ---- commit on feature branch ----
+            // ---------- Commit on feature branch ----------
             const newBranch = `disclosure/issue-${issue.number}`;
-            const refName = `refs/heads/${newBranch}`;
             try {
-              await github.rest.git.createRef({ owner, repo, ref: refName, sha: getRef.data.object.sha });
+              await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${newBranch}`, sha: getRef.data.object.sha });
             } catch (e) {
-              if (e.status !== 422) throw e; // 422 = already exists
+              if (e.status !== 422) throw e; // already exists is OK
             }
 
             const newContent = Buffer.from(JSON.stringify(registry, null, 2) + '\n', 'utf8').toString('base64');
             await github.rest.repos.createOrUpdateFileContents({
               owner, repo, branch: newBranch, path: 'registry.json',
-              message: `Add disclosure from issue #${issue.number} (${parsed.delegate_id} → ${parsed.interest.project})`,
+              message: `Add disclosure from issue #${issue.number} (${payload.delegate_id} → ${payload.interest.project})`,
               content: newContent,
               sha: fileSha || undefined,
               committer: { name: 'coi-bot', email: 'coi-bot@users.noreply.github.com' },
               author: { name: context.actor, email: `${context.actor}@users.noreply.github.com` }
             });
 
-            // ---- open or reuse PR ----
-            const prTitle = `Add disclosure: ${parsed.delegate_id} → ${parsed.interest.project} (from #${issue.number})`;
-            const existingPRs = await github.rest.pulls.list({
-              owner, repo, state: 'open', head: `${owner}:${newBranch}`, base: 'main'
-            });
-            let pr;
-            if (existingPRs.data.length) {
-              pr = existingPRs.data[0];
-            } else {
+            // ---------- Open or reuse PR ----------
+            const prTitle = `Add disclosure: ${payload.delegate_id} → ${payload.interest.project} (from #${issue.number})`;
+            const existingPRs = await github.rest.pulls.list({ owner, repo, state: 'open', head: `${owner}:${newBranch}`, base: 'main' });
+            let pr = existingPRs.data[0];
+            if (!pr) {
               pr = (await github.rest.pulls.create({
                 owner, repo, title: prTitle, head: newBranch, base: 'main',
                 body: `Automated PR created from disclosure issue #${issue.number}.`
@@ -297,7 +290,7 @@ jobs:
                 owner, repo, issue_number: issue.number,
                 labels: ['auto-pr']
               });
-            } catch (e) { /* non-fatal */ }
+            } catch (e) { /* optional */ }
 
       - name: Show PR URL
         run: echo "PR = ${{ steps.convert.outputs.pr_url }}"
