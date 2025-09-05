@@ -30,6 +30,12 @@ jobs:
       # REQUIRED by Pages
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        
+        #copies json to public
+      - name: Copy registry.json into public
+        run: |
+          mkdir -p public
+          cp registry.json public/registry.json
 
       # Upload the static site (must exist!)
       - name: Upload site
