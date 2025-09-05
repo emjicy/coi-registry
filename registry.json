@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generated_at": "2025-09-05T15:33:27.369Z",
+  "generated_at": "2025-09-05T15:44:20.906Z",
   "maintainer": "Compound Governance Working Group (CGWG)",
   "delegates": [
     {
@@ -123,6 +123,38 @@
           {
             "project": "010",
             "project_slug": "010",
+            "role": "",
+            "interest_type": "",
+            "materiality": "",
+            "status": "",
+            "compensation_currency": "",
+            "time": {
+              "start_date": ""
+            },
+            "disclosure": {
+              "short_text": "",
+              "links": []
+            },
+            "links": []
+          }
+        ],
+        "indirect": []
+      }
+    },
+    {
+      "id": "** 011",
+      "display_name": "** 011",
+      "organization": "",
+      "contacts": {},
+      "wallets": [],
+      "compliance": "compliant",
+      "notes": "",
+      "last_updated": "2025-09-05T15:44:20.906Z",
+      "interests": {
+        "direct": [
+          {
+            "project": "011",
+            "project_slug": "011",
             "role": "",
             "interest_type": "",
             "materiality": "",
