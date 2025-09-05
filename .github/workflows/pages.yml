@@ -2,8 +2,7 @@ name: Deploy COI Registry Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -11,17 +10,33 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # DEBUG: show tree so we know the folder really exists
+      - name: Show repo tree
+        run: |
+          ls -la
+          echo "---- public dir ----"
+          ls -la public || true
+
+      # REQUIRED by Pages
       - name: Setup Pages
         uses: actions/configure-pages@v4
+
+      # Upload the static site (must exist!)
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./public   # replace with your build output directory
+          path: ./public
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
