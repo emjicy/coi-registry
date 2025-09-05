@@ -14,93 +14,110 @@
     table { width: 100% }
     a { text-decoration: none }
     a:hover { text-decoration: underline }
+    .card { display:grid; gap:.75rem; max-width: 720px; padding:1rem; border:1px solid #ddd; border-radius:.75rem; margin:1.5rem 0; }
+    .row { display:grid; gap:.5rem; }
+    input, select { width:100%; padding:.5rem; }
+    hr { margin:2rem 0 }
   </style>
 </head>
-<hr style="margin:2rem 0"/>
+<body>
+  <h1>Conflict of Interest Registry</h1>
+  <p class="sub">Transparent, auditable disclosures for DAO governance.</p>
+  <p class="meta" id="meta"></p>
 
-<h2>Submit a Disclosure</h2>
-<p class="sub">Use this form to pre-fill a GitHub Issue in the <a href="https://github.com/emjicy/coi-registry" target="_blank" rel="noopener">coi-registry</a> repository. You’ll review and submit it there.</p>
+  <table id="registry" class="display compact"></table>
 
-<form id="disclosure-form" onsubmit="return false;" style="max-width:720px">
-  <div style="display:grid;gap:.75rem">
-    <label>Delegate ID / ENS
-      <input id="f-id" type="text" required placeholder="e.g., mel.eth" style="width:100%;padding:.5rem"/>
+  <p style="margin-top:1rem">
+    <a href="registry.json" download>Download JSON</a> ·
+    <a href="https://github.com/emjicy/coi-registry">Contribute on GitHub</a>
+  </p>
+
+  <hr />
+
+  <h2>Submit a Disclosure</h2>
+  <p class="sub">This form pre-fills a GitHub Issue in <a href="https://github.com/emjicy/coi-registry" target="_blank" rel="noopener">emjicy/coi-registry</a>. You’ll review & submit there.</p>
+
+  <form id="disclosure-form" onsubmit="return false;" class="row">
+    <label>Delegate ID / ENS <span style="color:#c00">*</span>
+      <input id="f-id" type="text" required placeholder="e.g., mel.eth" />
     </label>
     <label>Display Name
-      <input id="f-name" type="text" placeholder="e.g., mel.eth (StableLab)" style="width:100%;padding:.5rem"/>
+      <input id="f-name" type="text" placeholder="e.g., mel.eth (StableLab)" />
     </label>
     <label>Organization
-      <input id="f-org" type="text" placeholder="e.g., StableLab" style="width:100%;padding:.5rem"/>
+      <input id="f-org" type="text" placeholder="e.g., StableLab" />
     </label>
     <label>Wallet(s) (comma-separated)
-      <input id="f-wallets" type="text" placeholder="0x..., 0x..." style="width:100%;padding:.5rem"/>
+      <input id="f-wallets" type="text" placeholder="0x..., 0x..." />
     </label>
 
-    <div style="display:grid;gap:.5rem;padding:.75rem;border:1px solid #ddd;border-radius:.5rem">
+    <div class="card">
       <strong>Interest Details</strong>
-      <label>Type
-        <select id="f-type" style="width:100%;padding:.5rem">
+      <label>Type <span style="color:#c00">*</span>
+        <select id="f-type" required>
+          <option value="">-- select --</option>
           <option value="direct">direct</option>
           <option value="indirect">indirect</option>
         </select>
       </label>
-      <label>Project
-        <input id="f-project" type="text" required placeholder="e.g., Protocol X" style="width:100%;padding:.5rem"/>
+      <label>Project <span style="color:#c00">*</span>
+        <input id="f-project" type="text" required placeholder="e.g., Protocol X" />
       </label>
       <label>Role
-        <input id="f-role" type="text" placeholder="advisor / investor / service_provider" style="width:100%;padding:.5rem"/>
+        <input id="f-role" type="text" placeholder="advisor / investor / service_provider" />
       </label>
       <label>Interest Type
-        <input id="f-itype" type="text" placeholder="tokens / equity / retainer / grants" style="width:100%;padding:.5rem"/>
+        <input id="f-itype" type="text" placeholder="tokens / equity / retainer / grants" />
       </label>
       <label>Materiality
-        <input id="f-materiality" type="text" placeholder="minor / moderate / major" style="width:100%;padding:.5rem"/>
+        <input id="f-materiality" type="text" placeholder="minor / moderate / major" />
       </label>
       <label>Status
-        <input id="f-status" type="text" placeholder="active / inactive" style="width:100%;padding:.5rem"/>
+        <input id="f-status" type="text" placeholder="active / inactive" />
       </label>
       <label>Compensation Currency
-        <input id="f-currency" type="text" placeholder="COMP / USDC / USD / ..." style="width:100%;padding:.5rem"/>
+        <input id="f-currency" type="text" placeholder="COMP / USDC / USD / ..." />
       </label>
       <label>Org Affiliation (for indirect)
-        <input id="f-affil" type="text" placeholder="e.g., StableLab" style="width:100%;padding:.5rem"/>
+        <input id="f-affil" type="text" placeholder="e.g., StableLab" />
       </label>
       <label>Start Date
-        <input id="f-start" type="date" style="width:100%;padding:.5rem"/>
+        <input id="f-start" type="date" />
       </label>
       <label>Ongoing?
-        <select id="f-ongoing" style="width:100%;padding:.5rem">
+        <select id="f-ongoing">
           <option value="">unspecified</option>
           <option value="yes">yes</option>
           <option value="no">no</option>
         </select>
       </label>
       <label>Disclosure (short text)
-        <input id="f-short" type="text" placeholder="e.g., Advisor to Project B; token-compensated." style="width:100%;padding:.5rem"/>
+        <input id="f-short" type="text" placeholder="e.g., Advisor to Project B; token-compensated." />
       </label>
       <label>Links (comma-separated)
-        <input id="f-links" type="text" placeholder="https://..., https://..." style="width:100%;padding:.5rem"/>
+        <input id="f-links" type="text" placeholder="https://..., https://..." />
       </label>
     </div>
 
     <button id="btn-disclose" style="padding:.6rem 1rem;cursor:pointer">Open GitHub Issue…</button>
-    <small style="color:#666">Note: You will review and submit on GitHub. This form never stores your data.</small>
-  </div>
-</form>
+    <small style="color:#666">Required fields marked with * · This form stores nothing; all data is submitted on GitHub.</small>
+  </form>
 
-<script>
-(function(){
-  const repoNewIssueBase = 'https://github.com/emjicy/coi-registry/issues/new';
-  const labelList = ['disclosure']; // add more default labels if desired
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 
-  function mdEscape(s){ return (s||'').replace(/</g,'&lt;'); }
+  <!-- Disclosure form logic -->
+  <script>
+    (function(){
+      const repoNewIssueBase = 'https://github.com/emjicy/coi-registry/issues/new';
+      const labelList = ['disclosure'];
 
-  function buildBody(fields){
-    // Compose a Markdown block that maintainers can parse or a script can transform into JSON/PR.
-    const linksArr = fields.links.split(',').map(s=>s.trim()).filter(Boolean);
-    const walletsArr = fields.wallets.split(',').map(s=>s.trim()).filter(Boolean);
+      function mdEscape(s){ return (s||'').replace(/</g,'&lt;'); }
 
-    return [
+      function buildBody(fields){
+        const linksArr = fields.links.split(',').map(s=>s.trim()).filter(Boolean);
+        const walletsArr = fields.wallets.split(',').map(s=>s.trim()).filter(Boolean);
+        return [
 `### Disclosure Submission
 
 **delegate_id:** ${mdEscape(fields.id)}
@@ -125,117 +142,83 @@
   - links: ${linksArr.map(l=> `<${l}>`).join(', ') || ''}
 
 > Submitted via coi.oxcart.vote`,
-    ].join('\n');
-  }
+        ].join('\n');
+      }
 
-  function openIssue(){
-    const f = {
-      id: document.getElementById('f-id').value.trim(),
-      name: document.getElementById('f-name').value.trim(),
-      org: document.getElementById('f-org').value.trim(),
-      wallets: document.getElementById('f-wallets').value.trim(),
-      type: document.getElementById('f-type').value,
-      project: document.getElementById('f-project').value.trim(),
-      role: document.getElementById('f-role').value.trim(),
-      itype: document.getElementById('f-itype').value.trim(),
-      materiality: document.getElementById('f-materiality').value.trim(),
-      status: document.getElementById('f-status').value.trim(),
-      currency: document.getElementById('f-currency').value.trim(),
-      affil: document.getElementById('f-affil').value.trim(),
-      start: document.getElementById('f-start').value,
-      ongoing: document.getElementById('f-ongoing').value,
-      short: document.getElementById('f-short').value.trim(),
-      links: document.getElementById('f-links').value.trim(),
-    };
+      function openIssue(){
+        const f = {
+          id: document.getElementById('f-id').value.trim(),
+          name: document.getElementById('f-name').value.trim(),
+          org: document.getElementById('f-org').value.trim(),
+          wallets: document.getElementById('f-wallets').value.trim(),
+          type: document.getElementById('f-type').value,
+          project: document.getElementById('f-project').value.trim(),
+          role: document.getElementById('f-role').value.trim(),
+          itype: document.getElementById('f-itype').value.trim(),
+          materiality: document.getElementById('f-materiality').value.trim(),
+          status: document.getElementById('f-status').value.trim(),
+          currency: document.getElementById('f-currency').value.trim(),
+          affil: document.getElementById('f-affil').value.trim(),
+          start: document.getElementById('f-start').value,
+          ongoing: document.getElementById('f-ongoing').value,
+          short: document.getElementById('f-short').value.trim(),
+          links: document.getElementById('f-links').value.trim(),
+        };
 
-    if (!f.id || !f.project) {
-      alert('Please provide at least "Delegate ID" and "Project".');
-      return;
-    }
+        // Mirror backend required fields
+        const missing = [];
+        if (!f.id) missing.push('Delegate ID / ENS');
+        if (!f.type) missing.push('Type (direct/indirect)');
+        if (!f.project) missing.push('Project');
+        if (missing.length) {
+          alert('Please complete required fields: ' + missing.join(', '));
+          return;
+        }
 
-    const title = encodeURIComponent(`[Disclosure] ${f.id} → ${f.project}`);
-    const body = encodeURIComponent(buildBody(f));
-    const labels = encodeURIComponent(labelList.join(','));
-    const url = `${repoNewIssueBase}?title=${title}&body=${body}&labels=${labels}`;
-    window.open(url, '_blank', 'noopener');
-  }
+        const title = encodeURIComponent(`[Disclosure] ${f.id} → ${f.project}`);
+        const body  = encodeURIComponent(buildBody(f));
+        const labels = encodeURIComponent(labelList.join(','));
+        const url = `${repoNewIssueBase}?title=${title}&body=${body}&labels=${labels}`;
+        window.open(url, '_blank', 'noopener');
+      }
 
-  document.getElementById('btn-disclose').addEventListener('click', openIssue);
-})();
-</script>
-  
-<body>
-  <h1>Conflict of Interest Registry</h1>
-  <p class="sub">Transparent, auditable disclosures for DAO governance.</p>
-  <p class="meta" id="meta"></p>
+      document.getElementById('btn-disclose').addEventListener('click', openIssue);
+    })();
+  </script>
 
-  <table id="registry" class="display compact"></table>
-
-  <p style="margin-top:1rem">
-    <a href="registry.json" download>Download JSON</a> ·
-    <a href="https://github.com/emjicy/coi-registry">Contribute on GitHub</a>
-  </p>
-
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <!-- Registry table logic -->
   <script>
-    // ---- configuration ----
     const DATA_URL = 'registry.json';
 
-    // Column order for flattened rows
     const PREFERRED_ORDER = [
-      'type',                 // direct | indirect
-      'delegate_id',
-      'delegate_name',
-      'organization',
-      'project',
-      'role',
-      'interest_type',
-      'materiality',
-      'status',
-      'compensation_currency',
-      'org_affiliation',
-      'start_date',
-      'ongoing',
-      'disclosure',
-      'links',
-      'wallets',
-      'forum_profile',
-      'twitter',
-      'website',
-      'last_updated'
+      'type','delegate_id','delegate_name','organization','project','role',
+      'interest_type','materiality','status','compensation_currency','org_affiliation',
+      'start_date','ongoing','disclosure','links','wallets','forum_profile','twitter','website','last_updated'
     ];
 
-    // ---- helpers ----
     const fmtDate = (s) => {
       if (!s) return '';
       const d = new Date(s);
       return isNaN(d) ? s : d.toISOString().slice(0,10);
     };
 
-    const shortAddr = (a) =>
-      /^0x[a-fA-F0-9]{40}$/.test(a) ? (a.slice(0,6) + '…' + a.slice(-4)) : a;
-
-    const aTag = (href, text=href) =>
-      `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
-
+    const shortAddr = (a) => /^0x[a-fA-F0-9]{40}$/.test(a) ? (a.slice(0,6) + '…' + a.slice(-4)) : a;
+    const aTag = (href, text=href) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
     const linkify = (v) => (typeof v === 'string' && /^https?:\/\//i.test(v)) ? aTag(v) : v;
 
     const renderCell = (v) => {
       if (v == null) return '';
       if (Array.isArray(v)) return v.map(x => renderCell(x)).join('<br/>');
       if (typeof v === 'object') {
-        if (v.short_text) return v.short_text; // disclosure object
+        if (v.short_text) return v.short_text;
         return Object.entries(v).map(([k,val]) => `<strong>${k}</strong>: ${renderCell(val)}`).join('<br/>');
       }
       return linkify(String(v));
     };
 
-    // Flatten { delegates: [ { interests: { direct[], indirect[] } } ] } → rows
     function flatten(json){
       const out = [];
       const delegates = json?.delegates || [];
-      // header meta (optional)
       const metaEl = document.getElementById('meta');
       if (metaEl) {
         const v = json?.version ? `v${json.version}` : '';
@@ -285,7 +268,6 @@
       return out;
     }
 
-    // ---- bootstrap table ----
     fetch(DATA_URL)
       .then(r => r.json())
       .then(json => {
